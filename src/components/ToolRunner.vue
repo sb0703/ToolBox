@@ -227,8 +227,16 @@ async function run(actionKey: string) {
     error.value = res.error || "执行失败";
     return;
   }
-  // 持久化本次输入
-  if (props.toolId) hist.push(props.toolId, JSON.parse(JSON.stringify(form)));
+  // 持久化本次输入（忽略文件类型）
+  if (props.toolId) {
+    const plain: Record<string, any> = {};
+    Object.keys(form).forEach((key) => {
+      const val = form[key];
+      if (typeof File !== "undefined" && val instanceof File) return;
+      plain[key] = val;
+    });
+    hist.push(props.toolId, JSON.parse(JSON.stringify(plain)));
+  }
   Object.assign(outputs, res.outputs);
 }
 // 表格输出适配：支持 [{...}] 或 {columns,data}

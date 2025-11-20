@@ -7,7 +7,9 @@
     </template>
     <p class="tcard__desc">{{ tool.summary }}</p>
     <div class="tcard__actions">
-      <a-button type="primary" @click="goDetail">打开</a-button>
+      <a-button type="primary" @click="goPrimary">
+        {{ tool.type === "link" ? "访问" : "打开" }}
+      </a-button>
       <a-button @click="togglePin">
         {{ isPinned ? "取消收藏" : "收藏" }}
       </a-button>
@@ -27,7 +29,11 @@ const isPinned = computed(() =>
   user.profile.pinnedToolIds.includes(props.tool.id)
 );
 const togglePin = () => user.togglePin(props.tool.id);
-function goDetail() {
+function goPrimary() {
+  if (props.tool.type === "link" && props.tool.route) {
+    window.open(props.tool.route, "_blank");
+    return;
+  }
   router.push({ name: "tool-detail", params: { toolId: props.tool.id } });
 }
 </script>

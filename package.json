@@ -12,14 +12,17 @@
     "@ant-design/icons-vue": "^7.0.1",
     "@types/lodash": "^4.17.20",
     "ant-design-vue": "^4.2.6",
+    "jsqr": "^1.4.0",
     "less": "^4.4.2",
     "lodash": "^4.17.21",
     "pinia": "^3.0.3",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
+    "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
     "typescript": "~5.9.3",

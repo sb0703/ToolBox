@@ -18,6 +18,9 @@
         <a-tag v-for="tg in tool.tags" :key="tg" class="detail__tag">
           {{ tg }}
         </a-tag>
+        <div v-if="tool.type === 'link' && tool.route" class="detail__link">
+          <a-button type="primary" @click="openLink">访问外部工具</a-button>
+        </div>
         <div class="detail__i18n">
           <a-segmented
             v-model:value="i18n.locale"
@@ -50,7 +53,17 @@ import { formatJson } from "@/utils/json";
 import { encodeBase64, decodeBase64 } from "@/utils/base64";
 import { tsToDate, dateToTs } from "@/utils/time";
 import { useI18nStore } from "@/stores/i18n";
-import { parseCsv } from "@/utils/csv";
+import { runRegex } from "@/utils/regex";
+import { generateHash } from "@/utils/hash";
+import { compressImage, convertImage } from "@/utils/image";
+import { buildPalette } from "@/utils/color";
+import { markdownToHtml } from "@/utils/markdown";
+import { countWords } from "@/utils/text";
+import { csvToJson } from "@/utils/table";
+import { generateRandom } from "@/utils/random";
+import { convertUnit } from "@/utils/unit";
+import { getHolidayCountdown } from "@/utils/holiday";
+import { handleQrTask } from "@/utils/qrcode";
 import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
@@ -81,6 +94,9 @@ function togglePin() {
   if (!tool.value) return;
   user.togglePin(tool.value.id);
 }
+function openLink() {
+  if (tool.value?.route) window.open(tool.value.route, "_blank");
+}
 
 function validator(
   form: Record<string, any>,
@@ -103,11 +119,35 @@ function validator(
   if (tool.value.id === "base64") {
     if (!form.text || typeof form.text !== "string") return "请输入文本";
   }
-  if (tool.value.id === "csv-preview") {
-    if (!form.csv) return "请输入 CSV 文本";
+  if (tool.value.id === "color-picker" && !form.color) {
+    return "请输入颜色值";
   }
-  if (tool.value.id === "image-viewer") {
-    if (!form.src) return "请输入图片地址或 Base64";
+  if (tool.value.id === "svg-editor" && !form.svg) {
+    return "请输入 SVG 内容";
+  }
+  if (tool.value.id === "markdown-editor" && !form.text) {
+    return "请输入 Markdown 内容";
+  }
+  if (tool.value.id === "word-count" && !form.text) {
+    return "请输入文本";
+  }
+  if (
+    ["image-compress", "image-format"].includes(tool.value.id) &&
+    !form.file
+  ) {
+    return "请选择图片文件";
+  }
+  if (tool.value.id === "regex-tester") {
+    if (!form.pattern) return "请输入正则表达式";
+    if (form.flags && /[^gimsuy]/.test(form.flags))
+      return "Flags 只能为 g i m s u y";
+  }
+  if (tool.value.id === "hash-generator" && !form.text) {
+    return "请输入需要计算的内容";
+  }
+  if (tool.value.id === "qr-tool") {
+    if (actionKey === "generate" && !form.text) return "请输入要生成二维码的内容";
+    if (actionKey === "decode" && !form.file) return "请上传二维码图片";
   }
   return null;
 }
@@ -139,14 +179,122 @@ async function onRun(actionKey: string, form: Record<string, any>) {
         return { ok: true, outputs: { result: String(dateToTs(date, utc)) } };
       return { ok: false, outputs: {}, error: "未知操作" };
     }
-    case "csv-preview": {
-      const { csv = "" } = form;
-      const table = parseCsv(csv);
-      return { ok: true, outputs: { table } };
+  }
+
+  if (!tool.value) return { ok: false, outputs: {}, error: "工具不存在" };
+  switch (tool.value.id) {
+    case "regex-tester": {
+      const { pattern = "", flags = "", text = "" } = form;
+      const res = runRegex(pattern, flags, text);
+      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+      return {
+        ok: true,
+        outputs: {
+          result: res.summary,
+          table: { columns: res.columns, data: res.data },
+        },
+      };
     }
-    case "image-viewer": {
-      const { src = "" } = form;
-      return { ok: true, outputs: { img: String(src) } };
+    case "hash-generator": {
+      const { text = "", algorithm = "md5" } = form;
+      const digest = await generateHash(text, algorithm);
+      if (!digest.ok) return { ok: false, outputs: {}, error: digest.error };
+      return { ok: true, outputs: { result: digest.value } };
+    }
+    case "image-compress": {
+      const { file, quality = "0.7", format = "image/jpeg" } = form;
+      const res = await compressImage(file, {
+        quality: Number(quality) || 0.7,
+        format,
+      });
+      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+      return {
+        ok: true,
+        outputs: { img: res.dataUrl, result: res.meta },
+      };
+    }
+    case "image-format": {
+      const { file, format = "image/png" } = form;
+      const res = await convertImage(file, format);
+      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+      return {
+        ok: true,
+        outputs: { img: res.dataUrl, result: res.meta },
+      };
+    }
+    case "color-picker": {
+      const { color = "#1677ff" } = form;
+      const palette = buildPalette(color);
+      return { ok: true, outputs: { result: JSON.stringify(palette, null, 2) } };
+    }
+    case "svg-editor": {
+      const { svg = "" } = form;
+      const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+        svg
+      )}`;
+      return { ok: true, outputs: { img: encoded, result: svg } };
+    }
+    case "word-count": {
+      const { text = "" } = form;
+      const summary = countWords(text);
+      return { ok: true, outputs: { result: summary } };
+    }
+    case "markdown-editor": {
+      const { text = "" } = form;
+      const html = markdownToHtml(text);
+      return { ok: true, outputs: { result: html } };
+    }
+    case "table-converter": {
+      const { csv = "" } = form;
+      const json = csvToJson(csv);
+      return {
+        ok: true,
+        outputs: {
+          result: json.json,
+          table: { columns: json.columns, data: json.data },
+        },
+      };
+    }
+    case "qr-tool": {
+      if (actionKey === "generate") {
+        const { text = "", size = 320 } = form;
+        const res = await handleQrTask({
+          type: "generate",
+          text,
+          size: Number(size) || 320,
+        });
+        if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+        return { ok: true, outputs: { img: res.dataUrl, result: res.text } };
+      }
+      if (actionKey === "decode") {
+        const { file } = form;
+        const res = await handleQrTask({ type: "decode", file });
+        if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+        return { ok: true, outputs: { result: res.text || "" } };
+      }
+      break;
+    }
+    case "unit-converter": {
+      const { value = "", from = "m", to = "km" } = form;
+      const res = convertUnit(Number(value), from, to);
+      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+      return { ok: true, outputs: { result: res.text } };
+    }
+    case "random-generator": {
+      const opts = {
+        length: Number(form.length) || 12,
+        includeNumbers: !!form.includeNumbers,
+        includeSymbols: !!form.includeSymbols,
+        includeLowercase: form.includeLowercase !== false,
+        includeUppercase: !!form.includeUppercase,
+      };
+      const res = generateRandom(opts);
+      return { ok: true, outputs: { result: res } };
+    }
+    case "holiday-countdown": {
+      const res = getHolidayCountdown(form.holiday || "spring", form.customDate);
+      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+      return { ok: true, outputs: { result: res.text } };
     }
   }
   return { ok: false, outputs: {}, error: "暂未实现" };
