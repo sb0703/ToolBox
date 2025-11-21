@@ -3,13 +3,16 @@
     <a-form layout="vertical" @submit.prevent>
       <header class="chrono__hero">
         <div>
-          <p class="chrono__eyebrow">Time · Date · Tools</p>
-          <h1>时间戳转换器</h1>
-          <p class="chrono__desc">Unix Timestamp 与日期互转，支持 UTC 与智能语义解析。</p>
+          <p class="chrono__eyebrow">Toolbox · Smart Runner</p>
+          <h1>{{ titleText }}</h1>
+          <p class="chrono__desc">{{ descText }}</p>
           <div class="chrono__chips">
-            <span class="chrono__chip chrono__chip--active">Time</span>
-            <span class="chrono__chip chrono__chip--active">Date</span>
-            <span class="chrono__chip">工具</span>
+            <span
+              v-for="(chip, idx) in heroChips"
+              :key="chip + idx"
+              :class="['chrono__chip', idx < 2 ? 'chrono__chip--active' : '']"
+              >{{ chip }}</span
+            >
           </div>
         </div>
         <div class="chrono__heroOps">
@@ -29,7 +32,7 @@
       <main class="chrono__grid">
         <!-- Inputs -->
         <section class="chrono__card chrono__card--inputs">
-          <div class="chrono__cardHead">
+          <!-- <div class="chrono__cardHead">
             <div>
               <p class="chrono__cardTag"><SettingOutlined /> 输入配置</p>
               <p class="chrono__cardHint">填写 Timestamp 或日期，AI 可解析自然语言</p>
@@ -39,15 +42,15 @@
               <input type="checkbox" v-model="isUtc" />
               <span class="chrono__toggleBar"></span>
             </label>
-          </div>
+          </div> -->
 
-          <div class="chrono__smart">
+          <!-- <div class="chrono__smart">
             <a-input v-model:value="smartPrompt" placeholder="例如：下周五下午三点，或者“3 days later 10pm”" allow-clear />
             <a-button type="primary" :loading="smartLoading" @click="smartParse">
               <template #icon><CompassOutlined /></template>
               {{ smartLoading ? "解析中..." : "AI 智能解析" }}
             </a-button>
-          </div>
+          </div> -->
           <p v-if="smartInsight" class="chrono__smartHint">{{ smartInsight }}</p>
 
           <div class="chrono__inputs" aria-label="Inputs">
@@ -188,6 +191,9 @@ import {
 const props = defineProps<{
   schema: ToolSchema;
   toolId?: string;
+  title?: string;
+  description?: string;
+  chips?: string[];
   validator?: (form: Record<string, any>, actionKey: string) => string | null;
   onRun?: (
     actionKey: string,
@@ -214,6 +220,17 @@ const smartPrompt = ref("");
 const smartInsight = ref("");
 const smartLoading = ref(false);
 const error = ref<string | null>(null);
+
+const titleText = computed(() => props.title || "时间戳转换器");
+const descText = computed(
+  () =>
+    props.description ||
+    "实时在浏览器完成格式转换，支持 UTC 模式与自然语言解析。"
+);
+const heroChips = computed(() => {
+  if (props.chips && props.chips.length) return props.chips;
+  return ["Time", "Date", "工具"];
+});
 
 watch(
   () => props.schema.inputs,

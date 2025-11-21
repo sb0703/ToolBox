@@ -36,6 +36,9 @@
           <ToolRunner
             :schema="tool.schema"
             :toolId="tool.id"
+            :title="tool.name"
+            :description="tool.summary"
+            :chips="tool.tags"
             :validator="validator"
             :onRun="onRun"
           />

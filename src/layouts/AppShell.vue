@@ -35,7 +35,7 @@
       </div>
     </a-layout-header>
 
-    <section class="shell__hero">
+    <section v-if="showHero" class="shell__hero">
       <div class="shell__heroText">
         <p class="shell__heroEyebrow">Toolbox 2.0</p>
         <h2>用设计感与智能交互打造属于你的工作台</h2>
@@ -69,11 +69,12 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useUiStore } from "@/stores/ui";
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { HistoryOutlined } from "@ant-design/icons-vue";
 
 const ui = useUiStore();
 const route = useRoute();
+const showHero = computed(() => route.name === "home");
 
 const navs = [
   { key: "home", label: "首页", to: "/home" },
