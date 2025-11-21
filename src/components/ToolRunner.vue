@@ -32,7 +32,7 @@
       <main class="chrono__grid">
         <!-- Inputs -->
         <section class="chrono__card chrono__card--inputs">
-          <!-- <div class="chrono__cardHead">
+          <div class="chrono__cardHead">
             <div>
               <p class="chrono__cardTag"><SettingOutlined /> 输入配置</p>
               <p class="chrono__cardHint">填写 Timestamp 或日期，AI 可解析自然语言</p>
@@ -42,15 +42,15 @@
               <input type="checkbox" v-model="isUtc" />
               <span class="chrono__toggleBar"></span>
             </label>
-          </div> -->
+          </div>
 
-          <!-- <div class="chrono__smart">
+          <div class="chrono__smart">
             <a-input v-model:value="smartPrompt" placeholder="例如：下周五下午三点，或者“3 days later 10pm”" allow-clear />
             <a-button type="primary" :loading="smartLoading" @click="smartParse">
               <template #icon><CompassOutlined /></template>
               {{ smartLoading ? "解析中..." : "AI 智能解析" }}
             </a-button>
-          </div> -->
+          </div>
           <p v-if="smartInsight" class="chrono__smartHint">{{ smartInsight }}</p>
 
           <div class="chrono__inputs" aria-label="Inputs">
