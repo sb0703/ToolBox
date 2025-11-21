@@ -70,7 +70,6 @@ const route = useRoute();
 const catalog = useCatalogStore();
 const i18n = useI18nStore();
 const user = useUserStore();
-const t = i18n.t;
 
 onMounted(() => catalog.loadMock());
 

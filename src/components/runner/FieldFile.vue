@@ -1,6 +1,6 @@
 <template>
-  <a-form-item :label="field.label">
-    <input class="file" type="file" :accept="field.accept" @change="onChange" />
+  <a-form-item :label="props.field.label">
+    <input class="file" type="file" :accept="props.field.accept" @change="onChange" />
   </a-form-item>
 </template>
 <script setup lang="ts">
