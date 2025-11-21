@@ -1,9 +1,7 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import AppShell from "@/layouts/AppShell.vue";
+</script>
+
 <template>
   <AppShell />
 </template>
-<script lang="ts">
-export default {
-  components: { AppShell: (await import("@/layouts/AppShell.vue")).default },
-};
-</script>

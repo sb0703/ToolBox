@@ -203,7 +203,6 @@ const hist = useHistoryStore();
 const wrap = ref(true);
 const fontChoices = [12, 14, 16, 18] as const;
 const fontSize = ref<number>(14);
-const fontSizeOpts = fontChoices.map((v) => ({ label: String(v), value: v }));
 
 const form = reactive<Record<string, any>>({});
 const outputs = reactive<Record<string, any>>({});
