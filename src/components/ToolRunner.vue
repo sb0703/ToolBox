@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="chrono">
     <a-form layout="vertical" @submit.prevent>
       <header class="chrono__hero">
@@ -16,42 +16,29 @@
           </div>
         </div>
         <div class="chrono__heroOps">
+          <a-button v-if="toolId" class="chrono__ghost" @click="togglePin">
+            {{ isPinned ? "取消收藏" : "收藏" }}
+          </a-button>
           <a-button class="chrono__ghost" @click="toggleHistoryDrawer">
             <template #icon><HistoryOutlined /></template>
             历史记录
           </a-button>
-          <a class="chrono__ghost chrono__ghost--icon" href="https://github.com" target="_blank" rel="noreferrer">
-            <span class="sr-only">GitHub</span>
-            <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-            </svg>
-          </a>
         </div>
       </header>
 
       <main class="chrono__grid">
-        <!-- Inputs -->
-        <section class="chrono__card chrono__card--inputs">
+        <section class="chrono__card">
           <div class="chrono__cardHead">
             <div>
               <p class="chrono__cardTag"><SettingOutlined /> 输入配置</p>
-              <p class="chrono__cardHint">填写 Timestamp 或日期，AI 可解析自然语言</p>
+              <p class="chrono__cardHint">{{ descText }}</p>
             </div>
-            <label class="chrono__toggle">
+            <label v-if="showUtcToggle" class="chrono__toggle">
               <span :class="{ 'is-on': isUtc }">UTC 模式</span>
               <input type="checkbox" v-model="isUtc" />
               <span class="chrono__toggleBar"></span>
             </label>
           </div>
-
-          <div class="chrono__smart">
-            <a-input v-model:value="smartPrompt" placeholder="例如：下周五下午三点，或者“3 days later 10pm”" allow-clear />
-            <a-button type="primary" :loading="smartLoading" @click="smartParse">
-              <template #icon><CompassOutlined /></template>
-              {{ smartLoading ? "解析中..." : "AI 智能解析" }}
-            </a-button>
-          </div>
-          <p v-if="smartInsight" class="chrono__smartHint">{{ smartInsight }}</p>
 
           <div class="chrono__inputs" aria-label="Inputs">
             <div v-for="(field, i) in schema.inputs" :key="i" class="chrono__field">
@@ -77,8 +64,7 @@
           </div>
         </section>
 
-        <!-- Outputs -->
-        <section class="chrono__card chrono__card--outputs">
+        <section class="chrono__card">
           <transition name="fade">
             <div class="chrono__historyBoard" v-if="showHistoryDrawer">
               <div class="chrono__historyTop">
@@ -174,6 +160,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useHistoryStore } from "@/stores/history";
+import { useUserStore } from "@/stores/user";
 import { copyText } from "@/utils/clipboard";
 import { downloadText } from "@/utils/download";
 import type { ToolSchema } from "@/types/domain";
@@ -183,7 +170,6 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   HistoryOutlined,
-  CompassOutlined,
   SettingOutlined,
   ArrowRightOutlined,
 } from "@ant-design/icons-vue";
@@ -205,6 +191,7 @@ const props = defineProps<{
 
 const t = useI18nStore().t;
 const hist = useHistoryStore();
+const user = useUserStore();
 
 const wrap = ref(true);
 const fontChoices = [12, 14, 16, 18] as const;
@@ -216,41 +203,42 @@ const fieldErrors = reactive<Record<string, string>>({});
 const isUtc = ref(false);
 const showHistoryDrawer = ref(false);
 
-const smartPrompt = ref("");
-const smartInsight = ref("");
-const smartLoading = ref(false);
 const error = ref<string | null>(null);
 
-const titleText = computed(() => props.title || "时间戳转换器");
+const titleText = computed(() => props.title || "工具运行");
 const descText = computed(
-  () =>
-    props.description ||
-    "实时在浏览器完成格式转换，支持 UTC 模式与自然语言解析。"
+  () => props.description || "填写参数并运行此工具，支持 UTC 模式与历史回填"
 );
 const heroChips = computed(() => {
   if (props.chips && props.chips.length) return props.chips;
-  return ["Time", "Date", "工具"];
+  return ["工具", "运行", "智能"];
 });
 
-watch(
-  () => props.schema.inputs,
-  () => refreshFieldErrors(),
-  { immediate: true, deep: true }
+const isPinned = computed(() =>
+  props.toolId ? user.profile.pinnedToolIds.includes(props.toolId) : false
 );
-watch(
-  form,
-  () => refreshFieldErrors(),
-  { deep: true }
+const showUtcToggle = computed(() =>
+  Array.isArray(props.schema?.inputs) && props.schema.inputs.some((f) => f.key === "utc")
 );
 
-function refreshFieldErrors() {
-  props.schema.inputs?.forEach((field) => {
-    const required = (field as any).required;
-    if (required) {
-      const val = form[field.key];
-      fieldErrors[field.key] = val ? "" : `${field.label || field.key} 为必填项`;
-    }
-  });
+watch(
+  () => form.utc,
+  (val) => {
+    if (typeof val === "boolean") isUtc.value = val;
+  },
+  { immediate: true }
+);
+watch(
+  isUtc,
+  (val) => {
+    form.utc = val;
+  }
+);
+
+function setFont(size: number | string) {
+  const num = Number(size);
+  if (!Number.isFinite(num)) return;
+  fontSize.value = num;
 }
 
 const selectedHistory = ref<string | null>(null);
@@ -330,45 +318,6 @@ async function run(actionKey: string) {
   Object.assign(outputs, res.outputs);
 }
 
-function setFont(val: number) {
-  fontSize.value = val;
-}
-
-async function smartParse() {
-  if (!smartPrompt.value.trim()) {
-    message.warning("请输入需要解析的内容");
-    return;
-  }
-  smartLoading.value = true;
-  smartInsight.value = "";
-  try {
-    const result = parseNaturalLanguage(smartPrompt.value.trim());
-    smartInsight.value = result.summary;
-    Object.assign(form, result.formValues);
-  } finally {
-    smartLoading.value = false;
-  }
-}
-
-function parseNaturalLanguage(prompt: string) {
-  const target = new Date();
-  if (/明天/.test(prompt)) target.setDate(target.getDate() + 1);
-  if (/下周/.test(prompt)) target.setDate(target.getDate() + 7);
-  const hourMatch = /([0-9]{1,2})点/.exec(prompt);
-  if (hourMatch) {
-    let hour = Number(hourMatch[1]);
-    if (/下午|晚上/.test(prompt) && hour < 12) hour += 12;
-    target.setHours(hour, 0, 0);
-  }
-  return {
-    summary: `Gemini 解析建议时间：${target.toLocaleString()}`,
-    formValues: {
-      ts: Math.floor(target.getTime() / 1000),
-      date: target.toISOString().slice(0, 19).replace("T", " "),
-    },
-  };
-}
-
 function tableColumns(key: string) {
   const val = outputs[key];
   if (Array.isArray(val)) {
@@ -385,6 +334,11 @@ function tableData(key: string) {
   return [];
 }
 
+function togglePin() {
+  if (!props.toolId) return;
+  user.togglePin(props.toolId);
+}
+
 const inputMap: Record<string, any> = {
   text: (await import("@/components/runner/FieldText.vue")).default,
   textarea: (await import("@/components/runner/FieldTextarea.vue")).default,
@@ -398,30 +352,25 @@ const inputMap: Record<string, any> = {
 .chrono {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  background: #f1f4ff;
-  border-radius: 36px;
-  padding: 28px;
-  border: 1px solid rgba(99, 102, 241, 0.08);
-  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+  gap: 18px;
 }
-
 .chrono__hero {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
+  gap: 16px;
   align-items: center;
+  padding: 12px 16px;
 }
 .chrono__eyebrow {
   font-size: 12px;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: #8ea0c8;
+  margin: 0;
 }
 .chrono__desc {
   color: #6d769c;
-  margin: 8px 0 12px;
+  margin: 6px 0 10px;
 }
 .chrono__chips {
   display: inline-flex;
@@ -441,9 +390,8 @@ const inputMap: Record<string, any> = {
   color: #4d55c5;
 }
 .chrono__heroOps {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: inline-flex;
+  gap: 10px;
   align-items: center;
 }
 .chrono__ghost {
@@ -451,32 +399,32 @@ const inputMap: Record<string, any> = {
   background: rgba(255, 255, 255, 0.9);
   color: #4d55c5;
   border-radius: 12px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   display: inline-flex;
-  gap: 6px;
   align-items: center;
+  gap: 6px;
 }
 .chrono__ghost--icon {
-  padding: 10px;
+  padding: 8px;
 }
 
 .chrono__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  gap: 16px;
 }
 .chrono__card {
   background: #fff;
-  border-radius: 24px;
+  border-radius: 22px;
   border: 1px solid rgba(15, 23, 42, 0.05);
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.05);
-  padding: 20px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.07);
+  padding: 16px;
 }
 .chrono__cardHead {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
 }
 .chrono__cardTag {
@@ -528,22 +476,11 @@ const inputMap: Record<string, any> = {
   color: #6f63ff;
 }
 
-.chrono__smart {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-  margin: 12px 0;
-}
-.chrono__smartHint {
-  color: #6f63ff;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
 .chrono__inputs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
+  gap: 12px;
+  margin-top: 12px;
 }
 .chrono__field {
   display: flex;
@@ -558,15 +495,15 @@ const inputMap: Record<string, any> = {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .chrono__historyBoard {
   background: rgba(99, 102, 241, 0.05);
-  border-radius: 20px;
+  border-radius: 14px;
   border: 1px solid rgba(99, 102, 241, 0.15);
-  padding: 12px;
-  margin-bottom: 18px;
+  padding: 10px;
+  margin-bottom: 14px;
 }
 .chrono__historyTop {
   display: flex;
@@ -590,7 +527,7 @@ const inputMap: Record<string, any> = {
 .chrono__historyList button {
   border: 1px solid rgba(99, 102, 241, 0.2);
   background: #fff;
-  border-radius: 12px;
+  border-radius: 10px;
   display: inline-flex;
   gap: 6px;
   align-items: center;
@@ -627,12 +564,12 @@ const inputMap: Record<string, any> = {
 .chrono__outputs {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 .chrono__output {
   border: 1px solid rgba(15, 23, 42, 0.05);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 14px;
   background: rgba(248, 249, 255, 0.8);
 }
 .chrono__outputHead {
@@ -687,9 +624,6 @@ const inputMap: Record<string, any> = {
 }
 
 @media (max-width: 768px) {
-  .chrono {
-    padding: 20px;
-  }
   .chrono__hero {
     flex-direction: column;
     align-items: flex-start;
@@ -699,3 +633,7 @@ const inputMap: Record<string, any> = {
   }
 }
 </style>
+
+
+
+

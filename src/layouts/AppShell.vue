@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-layout class="shell">
     <a-layout-header class="shell__header">
       <div class="shell__brand">
@@ -40,7 +40,7 @@
         <p class="shell__heroEyebrow">Toolbox 2.0</p>
         <h2>用设计感与智能交互打造属于你的工作台</h2>
         <p>
-          收藏开发、设计、办公、生活四大类热门工具，刷新即用。智能解析、历史同步与 UTC
+          收录开发、设计、办公、生活四大类热门工具，刷新即用。智能解析、历史同步与 UTC
           模式，让流程自然而高效。
         </p>
       </div>
@@ -250,3 +250,5 @@ function toggleHistory() {
   }
 }
 </style>
+
+

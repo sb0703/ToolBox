@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="detail container">
     <a-breadcrumb class="detail__crumb">
       <a-breadcrumb-item>
@@ -8,30 +8,7 @@
     </a-breadcrumb>
 
     <a-skeleton :loading="!tool" active>
-      <a-card v-if="tool" :title="tool.name" class="detail__card">
-        <template #extra>
-          <a-button type="text" @click="togglePin">
-            {{ isPinned ? "取消收藏" : "收藏" }}
-          </a-button>
-        </template>
-        <p class="detail__summary">{{ tool.summary }}</p>
-        <a-tag v-for="tg in tool.tags" :key="tg" class="detail__tag">
-          {{ tg }}
-        </a-tag>
-        <div v-if="tool.type === 'link' && tool.route" class="detail__link">
-          <a-button type="primary" @click="openLink">访问外部工具</a-button>
-        </div>
-        <div class="detail__i18n">
-          <a-segmented
-            v-model:value="i18n.locale"
-            :options="[
-              { label: '中文', value: 'zh-CN' },
-              { label: 'English', value: 'en-US' },
-            ]"
-          />
-        </div>
-      </a-card>
-      <a-card v-if="tool?.schema" title="运行">
+      <a-card v-if="tool?.schema" class="detail__runner detail__info">
         <Suspense>
           <ToolRunner
             :schema="tool.schema"
@@ -107,8 +84,9 @@ function validator(
   if (!tool.value) return "工具不存在";
   if (tool.value.id === "timestamp") {
     if (actionKey === "ts_to_date") {
-      if (!form.ts || !/^\d{10,13}$/.test(String(form.ts)))
+      if (!form.ts || !/^\d{10,13}$/.test(String(form.ts))) {
         return "时间戳应为 10 或 13 位数字";
+      }
     }
     if (actionKey === "date_to_ts") {
       if (!form.date) return "请输入日期";
@@ -133,16 +111,12 @@ function validator(
   if (tool.value.id === "word-count" && !form.text) {
     return "请输入文本";
   }
-  if (
-    ["image-compress", "image-format"].includes(tool.value.id) &&
-    !form.file
-  ) {
+  if (["image-compress", "image-format"].includes(tool.value.id) && !form.file) {
     return "请选择图片文件";
   }
   if (tool.value.id === "regex-tester") {
     if (!form.pattern) return "请输入正则表达式";
-    if (form.flags && /[^gimsuy]/.test(form.flags))
-      return "Flags 只能为 g i m s u y";
+    if (form.flags && /[^gimsuy]/.test(form.flags)) return "Flags 仅支持 g i m s u y";
   }
   if (tool.value.id === "hash-generator" && !form.text) {
     return "请输入需要计算的内容";
@@ -307,23 +281,50 @@ async function onRun(actionKey: string, form: Record<string, any>) {
   &__crumb {
     margin-bottom: 12px;
   }
-  &__card {
+  &__info {
     margin-bottom: 12px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(255, 255, 255, 0.92));
+    border: 1px solid var(--border);
   }
-  &__meta {
-    display: grid;
-    gap: 8px;
+  &__infoHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  &__eyebrow {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  &__title {
+    margin: 4px 0;
+    font-size: 22px;
   }
   &__summary {
     color: var(--muted);
   }
   &__tags {
     display: flex;
-    gap: 6px;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  &__actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
     flex-wrap: wrap;
   }
-  &__i18n {
-    margin-top: 8px;
+  &__runner {
+    border: 1px solid var(--border);
   }
 }
 </style>
+
+
+
+
