@@ -48,7 +48,6 @@ import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
 const catalog = useCatalogStore();
-const i18n = useI18nStore();
 const user = useUserStore();
 
 onMounted(() => catalog.loadMock());
@@ -65,215 +64,162 @@ watch(
   { immediate: true }
 );
 
-const isPinned = computed(() =>
-  tool.value ? user.profile.pinnedToolIds.includes(tool.value.id) : false
-);
+type RunResult =
+  | { ok: true; outputs: Record<string, any> }
+  | { ok: false; outputs: Record<string, any>; error?: string };
 
-function togglePin() {
-  if (!tool.value) return;
-  user.togglePin(tool.value.id);
-}
-function openLink() {
-  if (tool.value?.route) window.open(tool.value.route, "_blank");
-}
-
-function validator(
-  form: Record<string, any>,
-  actionKey: string
-): string | null {
-  if (!tool.value) return "工具不存在";
-  if (tool.value.id === "timestamp") {
-    if (actionKey === "ts_to_date") {
-      if (!form.ts || !/^\d{10,13}$/.test(String(form.ts))) {
-        return "时间戳应为 10 或 13 位数字";
-      }
+const toolValidators: Record<string, (form: Record<string, any>, actionKey: string) => string | null> = {
+  timestamp: (form, actionKey) => {
+    if (actionKey === "ts_to_date" && (!form.ts || !/^\d{10,13}$/.test(String(form.ts)))) {
+      return "时间戳应为 10 或 13 位数字";
     }
     if (actionKey === "date_to_ts") {
       if (!form.date) return "请输入日期";
       if (isNaN(new Date(form.date).getTime())) return "日期格式不正确";
     }
-  }
-  if (tool.value.id === "json-formatter") {
-    if (!form.text || typeof form.text !== "string") return "请输入 JSON 文本";
-  }
-  if (tool.value.id === "base64") {
-    if (!form.text || typeof form.text !== "string") return "请输入文本";
-  }
-  if (tool.value.id === "color-picker" && !form.color) {
-    return "请输入颜色值";
-  }
-  if (tool.value.id === "svg-editor" && !form.svg) {
-    return "请输入 SVG 内容";
-  }
-  if (tool.value.id === "markdown-editor" && !form.text) {
-    return "请输入 Markdown 内容";
-  }
-  if (tool.value.id === "word-count" && !form.text) {
-    return "请输入文本";
-  }
-  if (["image-compress", "image-format"].includes(tool.value.id) && !form.file) {
-    return "请选择图片文件";
-  }
-  if (tool.value.id === "regex-tester") {
+    return null;
+  },
+  "json-formatter": (form) => (!form.text || typeof form.text !== "string" ? "请输入 JSON 文本" : null),
+  base64: (form) => (!form.text || typeof form.text !== "string" ? "请输入文本" : null),
+  "color-picker": (form) => (!form.color ? "请输入颜色值" : null),
+  "svg-editor": (form) => (!form.svg ? "请输入 SVG 内容" : null),
+  "markdown-editor": (form) => (!form.text ? "请输入 Markdown 内容" : null),
+  "word-count": (form) => (!form.text ? "请输入文本" : null),
+  "image-compress": (form) => (!form.file ? "请选择图片文件" : null),
+  "image-format": (form) => (!form.file ? "请选择图片文件" : null),
+  "regex-tester": (form) => {
     if (!form.pattern) return "请输入正则表达式";
     if (form.flags && /[^gimsuy]/.test(form.flags)) return "Flags 仅支持 g i m s u y";
-  }
-  if (tool.value.id === "hash-generator" && !form.text) {
-    return "请输入需要计算的内容";
-  }
-  if (tool.value.id === "qr-tool") {
+    return null;
+  },
+  "hash-generator": (form) => (!form.text ? "请输入需要计算的内容" : null),
+  "qr-tool": (form, actionKey) => {
     if (actionKey === "generate" && !form.text) return "请输入要生成二维码的内容";
     if (actionKey === "decode" && !form.file) return "请上传二维码图片";
-  }
-  return null;
+    return null;
+  },
+};
+
+function validator(form: Record<string, any>, actionKey: string): string | null {
+  if (!tool.value) return "工具不存在";
+  const validate = toolValidators[tool.value.id];
+  return validate ? validate(form, actionKey) : null;
 }
+
+const runners: Record<string, (actionKey: string, form: Record<string, any>) => Promise<RunResult> | RunResult> = {
+  "json-formatter": (actionKey, form) => {
+    const { text = "", compress = false } = form;
+    const res = formatJson(text, compress);
+    return res.ok ? { ok: true, outputs: { result: res.output } } : { ok: false, outputs: {}, error: res.error };
+  },
+  base64: (actionKey, form) => {
+    const { text = "", mode = "encode" } = form;
+    if (mode === "encode") return { ok: true, outputs: { result: encodeBase64(text) } };
+    const r = decodeBase64(text);
+    return r.ok ? { ok: true, outputs: { result: r.output } } : { ok: false, outputs: {}, error: r.error };
+  },
+  timestamp: (actionKey, form) => {
+    const { ts = "", date = "", utc = false } = form;
+    if (actionKey === "ts_to_date") return { ok: true, outputs: { result: tsToDate(ts, utc) } };
+    if (actionKey === "date_to_ts") return { ok: true, outputs: { result: String(dateToTs(date, utc)) } };
+    return { ok: false, outputs: {}, error: "未知操作" };
+  },
+  "regex-tester": (actionKey, form) => {
+    const { pattern = "", flags = "", text = "" } = form;
+    const res = runRegex(pattern, flags, text);
+    if (!res.ok) return { ok: false, outputs: {}, error: res.error };
+    return { ok: true, outputs: { result: res.summary, table: { columns: res.columns, data: res.data } } };
+  },
+  "hash-generator": async (actionKey, form) => {
+    const { text = "", algorithm = "md5" } = form;
+    const digest = await generateHash(text, algorithm);
+    return digest.ok
+      ? { ok: true, outputs: { result: digest.value } }
+      : { ok: false, outputs: {}, error: digest.error };
+  },
+  "image-compress": async (actionKey, form) => {
+    const { file, quality = "0.7", format = "image/jpeg" } = form;
+    const res = await compressImage(file, { quality: Number(quality) || 0.7, format });
+    return res.ok
+      ? { ok: true, outputs: { img: res.dataUrl, result: res.meta } }
+      : { ok: false, outputs: {}, error: res.error };
+  },
+  "image-format": async (actionKey, form) => {
+    const { file, format = "image/png" } = form;
+    const res = await convertImage(file, format);
+    return res.ok
+      ? { ok: true, outputs: { img: res.dataUrl, result: res.meta } }
+      : { ok: false, outputs: {}, error: res.error };
+  },
+  "color-picker": (actionKey, form) => {
+    const { color = "#1677ff" } = form;
+    const palette = buildPalette(color);
+    return { ok: true, outputs: { result: JSON.stringify(palette, null, 2) } };
+  },
+  "svg-editor": (actionKey, form) => {
+    const { svg = "" } = form;
+    const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    return { ok: true, outputs: { img: encoded, result: svg } };
+  },
+  "word-count": (actionKey, form) => {
+    const { text = "" } = form;
+    const summary = countWords(text);
+    return { ok: true, outputs: { result: summary } };
+  },
+  "markdown-editor": (actionKey, form) => {
+    const { text = "" } = form;
+    const html = markdownToHtml(text);
+    return { ok: true, outputs: { result: html } };
+  },
+  "table-converter": (actionKey, form) => {
+    const { csv = "" } = form;
+    const json = csvToJson(csv);
+    return { ok: true, outputs: { result: json.json, table: { columns: json.columns, data: json.data } } };
+  },
+  "qr-tool": async (actionKey, form) => {
+    if (actionKey === "generate") {
+      const { text = "", size = 320 } = form;
+      const res = await handleQrTask({ type: "generate", text, size: Number(size) || 320 });
+      return res.ok
+        ? { ok: true, outputs: { img: res.dataUrl, result: res.text } }
+        : { ok: false, outputs: {}, error: res.error };
+    }
+    if (actionKey === "decode") {
+      const { file } = form;
+      const res = await handleQrTask({ type: "decode", file });
+      return res.ok
+        ? { ok: true, outputs: { result: res.text || "" } }
+        : { ok: false, outputs: {}, error: res.error };
+    }
+    return { ok: false, outputs: {}, error: "未知操作" };
+  },
+  "unit-converter": (actionKey, form) => {
+    const { value = "", from = "m", to = "km" } = form;
+    const res = convertUnit(Number(value), from, to);
+    return res.ok ? { ok: true, outputs: { result: res.text } } : { ok: false, outputs: {}, error: res.error };
+  },
+  "random-generator": (actionKey, form) => {
+    const opts = {
+      length: Number(form.length) || 12,
+      includeNumbers: !!form.includeNumbers,
+      includeSymbols: !!form.includeSymbols,
+      includeLowercase: form.includeLowercase !== false,
+      includeUppercase: !!form.includeUppercase,
+    };
+    const res = generateRandom(opts);
+    return { ok: true, outputs: { result: res } };
+  },
+  "holiday-countdown": (actionKey, form) => {
+    const res = getHolidayCountdown(form.holiday || "spring", form.customDate);
+    return res.ok ? { ok: true, outputs: { result: res.text } } : { ok: false, outputs: {}, error: res.error };
+  },
+};
 
 async function onRun(actionKey: string, form: Record<string, any>) {
   if (!tool.value) return { ok: false, outputs: {}, error: "工具不存在" };
-  switch (tool.value.id) {
-    case "json-formatter": {
-      const { text = "", compress = false } = form;
-      const res = formatJson(text, compress);
-      return res.ok
-        ? { ok: true, outputs: { result: res.output } }
-        : { ok: false, outputs: {}, error: res.error };
-    }
-    case "base64": {
-      const { text = "", mode = "encode" } = form;
-      if (mode === "encode")
-        return { ok: true, outputs: { result: encodeBase64(text) } };
-      const r = decodeBase64(text);
-      return r.ok
-        ? { ok: true, outputs: { result: r.output } }
-        : { ok: false, outputs: {}, error: r.error };
-    }
-    case "timestamp": {
-      const { ts = "", date = "", utc = false } = form;
-      if (actionKey === "ts_to_date")
-        return { ok: true, outputs: { result: tsToDate(ts, utc) } };
-      if (actionKey === "date_to_ts")
-        return { ok: true, outputs: { result: String(dateToTs(date, utc)) } };
-      return { ok: false, outputs: {}, error: "未知操作" };
-    }
-  }
-
-  if (!tool.value) return { ok: false, outputs: {}, error: "工具不存在" };
-  switch (tool.value.id) {
-    case "regex-tester": {
-      const { pattern = "", flags = "", text = "" } = form;
-      const res = runRegex(pattern, flags, text);
-      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-      return {
-        ok: true,
-        outputs: {
-          result: res.summary,
-          table: { columns: res.columns, data: res.data },
-        },
-      };
-    }
-    case "hash-generator": {
-      const { text = "", algorithm = "md5" } = form;
-      const digest = await generateHash(text, algorithm);
-      if (!digest.ok) return { ok: false, outputs: {}, error: digest.error };
-      return { ok: true, outputs: { result: digest.value } };
-    }
-    case "image-compress": {
-      const { file, quality = "0.7", format = "image/jpeg" } = form;
-      const res = await compressImage(file, {
-        quality: Number(quality) || 0.7,
-        format,
-      });
-      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-      return {
-        ok: true,
-        outputs: { img: res.dataUrl, result: res.meta },
-      };
-    }
-    case "image-format": {
-      const { file, format = "image/png" } = form;
-      const res = await convertImage(file, format);
-      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-      return {
-        ok: true,
-        outputs: { img: res.dataUrl, result: res.meta },
-      };
-    }
-    case "color-picker": {
-      const { color = "#1677ff" } = form;
-      const palette = buildPalette(color);
-      return { ok: true, outputs: { result: JSON.stringify(palette, null, 2) } };
-    }
-    case "svg-editor": {
-      const { svg = "" } = form;
-      const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-        svg
-      )}`;
-      return { ok: true, outputs: { img: encoded, result: svg } };
-    }
-    case "word-count": {
-      const { text = "" } = form;
-      const summary = countWords(text);
-      return { ok: true, outputs: { result: summary } };
-    }
-    case "markdown-editor": {
-      const { text = "" } = form;
-      const html = markdownToHtml(text);
-      return { ok: true, outputs: { result: html } };
-    }
-    case "table-converter": {
-      const { csv = "" } = form;
-      const json = csvToJson(csv);
-      return {
-        ok: true,
-        outputs: {
-          result: json.json,
-          table: { columns: json.columns, data: json.data },
-        },
-      };
-    }
-    case "qr-tool": {
-      if (actionKey === "generate") {
-        const { text = "", size = 320 } = form;
-        const res = await handleQrTask({
-          type: "generate",
-          text,
-          size: Number(size) || 320,
-        });
-        if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-        return { ok: true, outputs: { img: res.dataUrl, result: res.text } };
-      }
-      if (actionKey === "decode") {
-        const { file } = form;
-        const res = await handleQrTask({ type: "decode", file });
-        if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-        return { ok: true, outputs: { result: res.text || "" } };
-      }
-      break;
-    }
-    case "unit-converter": {
-      const { value = "", from = "m", to = "km" } = form;
-      const res = convertUnit(Number(value), from, to);
-      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-      return { ok: true, outputs: { result: res.text } };
-    }
-    case "random-generator": {
-      const opts = {
-        length: Number(form.length) || 12,
-        includeNumbers: !!form.includeNumbers,
-        includeSymbols: !!form.includeSymbols,
-        includeLowercase: form.includeLowercase !== false,
-        includeUppercase: !!form.includeUppercase,
-      };
-      const res = generateRandom(opts);
-      return { ok: true, outputs: { result: res } };
-    }
-    case "holiday-countdown": {
-      const res = getHolidayCountdown(form.holiday || "spring", form.customDate);
-      if (!res.ok) return { ok: false, outputs: {}, error: res.error };
-      return { ok: true, outputs: { result: res.text } };
-    }
-  }
-  return { ok: false, outputs: {}, error: "暂未实现" };
+  const handler = runners[tool.value.id];
+  if (!handler) return { ok: false, outputs: {}, error: "暂未实现" };
+  return handler(actionKey, form);
 }
 </script>
 <style lang="less" scoped>
