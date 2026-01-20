@@ -36,11 +36,23 @@
               <p class="chrono__cardTag"> <SettingOutlined /> 输入配置 </p>
               <p class="chrono__cardHint">{{ descText }}</p>
             </div>
-            <label v-if="showUtcToggle" class="chrono__toggle">
-              <span :class="{ 'is-on': isUtc }">UTC 模式</span>
-              <input type="checkbox" v-model="isUtc" />
-              <span class="chrono__toggleBar"></span>
-            </label>
+            <div class="chrono__headOps">
+              <a-select
+                v-if="presetOptions.length"
+                size="small"
+                class="chrono__preset"
+                :options="presetOptions.map((p) => ({ label: p.label, value: p.label }))"
+                placeholder="选择模板"
+                @change="
+                  (val) => applyPreset(presetOptions.find((p) => p.label === val)?.payload || {})
+                "
+              />
+              <label v-if="showUtcToggle" class="chrono__toggle">
+                <span :class="{ 'is-on': isUtc }">UTC 模式</span>
+                <input type="checkbox" v-model="isUtc" />
+                <span class="chrono__toggleBar"></span>
+              </label>
+            </div>
           </div>
 
           <div class="chrono__inputs" aria-label="Inputs">
@@ -50,9 +62,9 @@
                 :field="field"
                 v-model:value="form[field.key]"
               />
-              <p v-if="fieldErrors[field.key]" class="chrono__fieldError">{{
-                fieldErrors[field.key]
-              }}</p>
+              <p v-if="fieldErrors[field.key]" class="chrono__fieldError">
+                {{ fieldErrors[field.key] }}
+              </p>
             </div>
           </div>
 
@@ -105,6 +117,12 @@
               <p class="chrono__cardHint">支持字号切换与自动换行</p>
             </div>
             <div class="chrono__resultOps">
+              <a-tag v-if="lastStatus.ok !== null" :color="lastStatus.ok ? 'green' : 'red'">
+                {{ lastStatus.ok ? '成功' : '失败' }}
+                <span v-if="lastStatus.time">
+                  · {{ new Date(lastStatus.time).toLocaleTimeString() }}</span
+                >
+              </a-tag>
               <div class="chrono__fontSwitch">
                 <button
                   v-for="size in fontChoices"
@@ -128,7 +146,37 @@
                   <div class="chrono__label">{{ out.label || t('outputs') }}</div>
                   <div class="chrono__ops">
                     <a-button size="small" @click="copy(out.key)">{{ t('copy') }}</a-button>
+                    <a-button size="small" @click="copyAsMarkdown(out.key)">复制MD</a-button>
+                    <a-button size="small" @click="copyAsJson(out.key)">复制JSON</a-button>
                     <a-button size="small" @click="download(out.key)">{{ t('download') }}</a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      @click="downloadAsJson(out.key)"
+                    >
+                      下载JSON
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      @click="downloadAsMarkdown(out.key)"
+                    >
+                      下载MD
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'table'"
+                      size="small"
+                      @click="downloadTableCsv(out.key)"
+                    >
+                      导出CSV
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'image'"
+                      size="small"
+                      @click="downloadImage(out.key)"
+                    >
+                      下载图片
+                    </a-button>
                   </div>
                 </div>
                 <a-alert
@@ -197,6 +245,7 @@
     title?: string
     description?: string
     chips?: string[]
+    presets?: { label: string; payload: Record<string, any> }[]
     validator?: (form: Record<string, any>, actionKey: string) => string | null
     onRun?: (
       actionKey: string,
@@ -219,6 +268,11 @@
   const fieldErrors = reactive<Record<string, string>>({})
   const isUtc = ref(false)
   const showHistoryDrawer = ref(false)
+  const lastStatus = ref<{ ok: boolean | null; message?: string; time?: number }>({
+    ok: null,
+    message: '',
+    time: undefined
+  })
 
   const error = ref<string | null>(null)
 
@@ -229,6 +283,34 @@
   const heroChips = computed(() => {
     if (props.chips && props.chips.length) return props.chips
     return ['工具', '运行', '智能']
+  })
+  const presetOptions = computed(() => {
+    if (props.presets?.length) return props.presets
+    if (props.toolId === 'base64') {
+      return [
+        { label: 'Base64 编码示例', payload: { text: 'Hello, world!', mode: 'encode' } },
+        { label: 'Base64 解码示例', payload: { text: 'SGVsbG8sIHdvcmxkIQ==', mode: 'decode' } }
+      ]
+    }
+    if (props.toolId === 'json-formatter') {
+      return [
+        { label: '格式化示例', payload: { text: '{"foo":1,"bar":{"baz":true}}', compress: false } },
+        { label: '压缩示例', payload: { text: '{\n  \"items\": [1,2,3]\n}', compress: true } }
+      ]
+    }
+    if (props.toolId === 'regex-tester') {
+      return [
+        {
+          label: '邮箱匹配',
+          payload: { pattern: '\\\\w+@\\\\w+\\\\.\\\\w+', flags: 'i', text: 'test@demo.com' }
+        },
+        {
+          label: '手机号匹配',
+          payload: { pattern: '^1\\\\d{10}$', flags: '', text: '13800138000' }
+        }
+      ]
+    }
+    return []
   })
 
   const isPinned = computed(() =>
@@ -249,6 +331,49 @@
     form.utc = val
   })
 
+  function validateRealtime() {
+    Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k])
+    if (!props.toolId) return
+    if (props.toolId === 'json-formatter') {
+      if (form.text) {
+        try {
+          JSON.parse(form.text)
+        } catch {
+          fieldErrors.text = 'JSON 格式错误'
+        }
+      }
+    }
+    if (props.toolId === 'base64') {
+      if (form.text && form.mode === 'decode') {
+        const ok = /^[A-Za-z0-9+/=\r\n\s]+$/.test(form.text)
+        if (!ok) fieldErrors.text = 'Base64 格式不合法'
+      }
+    }
+    if (props.toolId === 'regex-tester') {
+      if (!form.pattern) {
+        fieldErrors.pattern = '正则表达式不能为空'
+      } else {
+        try {
+          // eslint-disable-next-line no-new
+          new RegExp(form.pattern, form.flags || '')
+        } catch (e: any) {
+          fieldErrors.pattern = '正则无效：' + (e?.message || '')
+        }
+      }
+      if (form.flags && /[^gimsuy]/.test(form.flags)) {
+        fieldErrors.flags = 'Flags 仅支持 g i m s u y'
+      }
+    }
+  }
+
+  watch(
+    form,
+    () => {
+      validateRealtime()
+    },
+    { deep: true }
+  )
+
   function setFont(size: number | string) {
     const num = Number(size)
     if (!Number.isFinite(num)) return
@@ -268,6 +393,11 @@
 
   function toggleHistoryDrawer() {
     showHistoryDrawer.value = !showHistoryDrawer.value
+  }
+
+  function applyPreset(payload: Record<string, any>) {
+    Object.keys(form).forEach((k) => delete form[k])
+    Object.assign(form, JSON.parse(JSON.stringify(payload || {})))
   }
 
   function applyHistory() {
@@ -292,14 +422,73 @@
   function reset() {
     Object.keys(form).forEach((k) => delete form[k])
     clearOutputs()
+    lastStatus.value = { ok: null, message: '', time: undefined }
   }
 
   function copy(key: string) {
     copyText(String(outputs[key] ?? ''))
     message.success('复制成功')
   }
+  function copyAsMarkdown(key: string) {
+    const val = outputs[key]
+    const md = '```\n' + String(val ?? '') + '\n```'
+    copyText(md)
+    message.success('已复制为 Markdown')
+  }
+  function copyAsJson(key: string) {
+    try {
+      const json = JSON.stringify(outputs[key] ?? '', null, 2)
+      copyText(json)
+      message.success('已复制为 JSON')
+    } catch {
+      message.error('内容无法转换为 JSON')
+    }
+  }
   function download(key: string) {
     downloadText(`${props.toolId || 'output'}-${key}.txt`, String(outputs[key] ?? ''))
+  }
+  function downloadAsJson(key: string) {
+    try {
+      const json = JSON.stringify(outputs[key] ?? '', null, 2)
+      downloadText(`${props.toolId || 'output'}-${key}.json`, json)
+    } catch {
+      message.error('内容无法转换为 JSON')
+    }
+  }
+  function downloadAsMarkdown(key: string) {
+    const md = '```\n' + String(outputs[key] ?? '') + '\n```'
+    downloadText(`${props.toolId || 'output'}-${key}.md`, md)
+  }
+  function downloadTableCsv(key: string) {
+    const cols = tableColumns(key)
+    const data = tableData(key)
+    if (!cols.length || !data.length) {
+      message.warning('暂无表格数据')
+      return
+    }
+    const header = cols.map((c: any) => `"${String(c.title).replace(/"/g, '""')}"`).join(',')
+    const rows = data.map((row: any) =>
+      cols
+        .map((c: any) => {
+          const val = row[c.dataIndex]
+          const cell = val === undefined || val === null ? '' : String(val)
+          return `"${cell.replace(/"/g, '""')}"`
+        })
+        .join(',')
+    )
+    const csv = [header, ...rows].join('\n')
+    downloadText(`${props.toolId || 'output'}-${key}.csv`, csv)
+  }
+  function downloadImage(key: string) {
+    const src = outputs[key]
+    if (!src || typeof src !== 'string') {
+      message.warning('暂无图片')
+      return
+    }
+    const link = document.createElement('a')
+    link.href = src
+    link.download = `${props.toolId || 'image'}-${key}.png`
+    link.click()
   }
 
   async function run(actionKey: string) {
@@ -308,6 +497,7 @@
       const msg = props.validator(form, actionKey)
       if (msg) {
         error.value = msg
+        lastStatus.value = { ok: false, message: msg, time: Date.now() }
         return
       }
     }
@@ -315,6 +505,7 @@
     if (!res) return
     if (!res.ok) {
       error.value = res.error || '执行失败'
+      lastStatus.value = { ok: false, message: error.value, time: Date.now() }
       return
     }
     if (props.toolId) {
@@ -327,6 +518,7 @@
       hist.push(props.toolId, JSON.parse(JSON.stringify(plain)))
     }
     Object.assign(outputs, res.outputs)
+    lastStatus.value = { ok: true, message: '执行成功', time: Date.now() }
   }
 
   function tableColumns(key: string) {
@@ -448,6 +640,14 @@
     gap: 12px;
     align-items: center;
     flex-wrap: wrap;
+  }
+  .chrono__headOps {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .chrono__preset {
+    min-width: 160px;
   }
 
   .chrono__cardTag {

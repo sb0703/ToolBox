@@ -1,4 +1,4 @@
-import { defineStore } from "pinia";
+﻿import { defineStore } from "pinia";
 import type { UserProfile } from "@/types/domain";
 
 const KEY = "toolbox.user.profile";
@@ -112,3 +112,4 @@ export const useUserStore = defineStore("user", {
     },
   },
 });
+

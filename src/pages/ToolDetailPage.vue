@@ -16,6 +16,7 @@
             :title="tool.name"
             :description="tool.summary"
             :chips="tool.tags"
+            :presets="presetMap[tool.id]"
             :validator="validator"
             :onRun="onRun"
           />
@@ -32,7 +33,6 @@ import ToolRunner from "@/components/ToolRunner.vue";
 import { formatJson } from "@/utils/json";
 import { encodeBase64, decodeBase64 } from "@/utils/base64";
 import { tsToDate, dateToTs } from "@/utils/time";
-import { useI18nStore } from "@/stores/i18n";
 import { runRegex } from "@/utils/regex";
 import { generateHash } from "@/utils/hash";
 import { compressImage, convertImage } from "@/utils/image";
@@ -49,6 +49,21 @@ import { useUserStore } from "@/stores/user";
 const route = useRoute();
 const catalog = useCatalogStore();
 const user = useUserStore();
+
+const presetMap: Record<string, { label: string; payload: Record<string, any> }[]> = {
+  "json-formatter": [
+    { label: "格式化示例", payload: { text: '{"foo":1,"bar":{"baz":true}}', compress: false } },
+    { label: "压缩示例", payload: { text: '{\n  \"items\": [1,2,3]\n}', compress: true } },
+  ],
+  base64: [
+    { label: "Base64 编码", payload: { text: "Hello, world!", mode: "encode" } },
+    { label: "Base64 解码", payload: { text: "SGVsbG8sIHdvcmxkIQ==", mode: "decode" } },
+  ],
+  "regex-tester": [
+    { label: "邮箱匹配", payload: { pattern: "\\w+@\\w+\\.\\w+", flags: "i", text: "test@demo.com" } },
+    { label: "手机号", payload: { pattern: "^1\\d{10}$", flags: "", text: "13800138000" } },
+  ],
+};
 
 onMounted(() => catalog.loadMock());
 
@@ -270,7 +285,4 @@ async function onRun(actionKey: string, form: Record<string, any>) {
   }
 }
 </style>
-
-
-
 

@@ -42,13 +42,34 @@
             v-model:value="search.sort"
             :options="[
               { label: 'A-Z', value: 'az' },
-              { label: '最近', value: 'recent' },
+              { label: '智能排序', value: 'smart' },
             ]"
           />
           <a-button type="default" @click="goSearch">打开高级搜索</a-button>
         </div>
       </div>
     </div>
+
+    <section v-if="recommended.length" class="tools__section tools__section--accent">
+      <div class="tools__sectionHead">
+        <div>
+          <h2>猜你需要</h2>
+          <p>基于收藏与智能排序使用，快速直达常用工具。</p>
+        </div>
+        <a-tag color="purple">{{ recommended.length }} 个推荐</a-tag>
+      </div>
+      <a-row :gutter="[20, 20]">
+        <a-col
+          v-for="tool in recommended"
+          :key="tool.id"
+          :xs="24"
+          :sm="12"
+          :md="8"
+        >
+          <ToolCard :tool="tool" />
+        </a-col>
+      </a-row>
+    </section>
 
     <section v-for="section in sections" :key="section.id" class="tools__section">
       <div class="tools__sectionHead">
@@ -86,10 +107,12 @@ import { writeSearchQuery } from "@/utils/query";
 import { useRouter } from "vue-router";
 import ToolCard from "@/components/ToolCard.vue";
 import GlobalSearch from "@/components/GlobalSearch.vue";
+import { useUserStore } from "@/stores/user";
 
 const catalog = useCatalogStore();
 const search = useSearchStore();
 const router = useRouter();
+const user = useUserStore();
 
 const descriptions: Record<string, string> = {
   dev: "开发者常用：格式化、加密解密、正则/哈希一步到位。",
@@ -107,6 +130,15 @@ const sections = computed(() =>
     }))
     .filter((cat) => cat.tools.length)
 );
+
+const recommended = computed(() => {
+  const ids = [...user.profile.pinnedToolIds, ...user.profile.recentToolIds];
+  const unique = Array.from(new Set(ids));
+  const mapped = unique
+    .map((id) => catalog.tools.find((t) => t.id === id))
+    .filter((t): t is NonNullable<typeof t> => !!t);
+  return mapped.slice(0, 6);
+});
 
 const hasResults = computed(() => search.results.length > 0);
 
@@ -202,6 +234,10 @@ onMounted(() => {
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
     border: 1px solid rgba(15, 23, 42, 0.08);
   }
+  &__section--accent {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(255, 255, 255, 0.9));
+    border: 1px solid rgba(99, 102, 241, 0.18);
+  }
   &__sectionHead {
     display: flex;
     justify-content: space-between;
@@ -218,3 +254,4 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.06);
 }
 </style>
+
