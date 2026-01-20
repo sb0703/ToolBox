@@ -145,13 +145,28 @@
                 <div class="chrono__outputHead">
                   <div class="chrono__label">{{ out.label || t('outputs') }}</div>
                   <div class="chrono__ops">
-                    <a-button size="small" @click="copy(out.key)">{{ t('copy') }}</a-button>
-                    <a-button size="small" @click="copyAsMarkdown(out.key)">复制MD</a-button>
-                    <a-button size="small" @click="copyAsJson(out.key)">复制JSON</a-button>
-                    <a-button size="small" @click="download(out.key)">{{ t('download') }}</a-button>
+                    <a-button size="small" :disabled="!hasOutput(out.key)" @click="copy(out.key)"
+                      >{{ t('copy') }}</a-button
+                    >
+                    <a-button
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="copyAsMarkdown(out.key)"
+                      >复制MD</a-button
+                    >
+                    <a-button
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="copyAsJson(out.key)"
+                      >复制JSON</a-button
+                    >
+                    <a-button size="small" :disabled="!hasOutput(out.key)" @click="download(out.key)"
+                      >{{ t('download') }}</a-button
+                    >
                     <a-button
                       v-if="out.type === 'text' || out.type === 'code'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadAsJson(out.key)"
                     >
                       下载JSON
@@ -159,6 +174,7 @@
                     <a-button
                       v-if="out.type === 'text' || out.type === 'code'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadAsMarkdown(out.key)"
                     >
                       下载MD
@@ -166,6 +182,7 @@
                     <a-button
                       v-if="out.type === 'table'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadTableCsv(out.key)"
                     >
                       导出CSV
@@ -173,6 +190,7 @@
                     <a-button
                       v-if="out.type === 'image'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadImage(out.key)"
                     >
                       下载图片
@@ -426,16 +444,28 @@
   }
 
   function copy(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     copyText(String(outputs[key] ?? ''))
     message.success('复制成功')
   }
   function copyAsMarkdown(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     const val = outputs[key]
     const md = '```\n' + String(val ?? '') + '\n```'
     copyText(md)
     message.success('已复制为 Markdown')
   }
   function copyAsJson(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     try {
       const json = JSON.stringify(outputs[key] ?? '', null, 2)
       copyText(json)
@@ -445,9 +475,17 @@
     }
   }
   function download(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     downloadText(`${props.toolId || 'output'}-${key}.txt`, String(outputs[key] ?? ''))
   }
   function downloadAsJson(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     try {
       const json = JSON.stringify(outputs[key] ?? '', null, 2)
       downloadText(`${props.toolId || 'output'}-${key}.json`, json)
@@ -456,10 +494,18 @@
     }
   }
   function downloadAsMarkdown(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     const md = '```\n' + String(outputs[key] ?? '') + '\n```'
     downloadText(`${props.toolId || 'output'}-${key}.md`, md)
   }
   function downloadTableCsv(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     const cols = tableColumns(key)
     const data = tableData(key)
     if (!cols.length || !data.length) {
@@ -480,6 +526,10 @@
     downloadText(`${props.toolId || 'output'}-${key}.csv`, csv)
   }
   function downloadImage(key: string) {
+    if (!hasOutput(key)) {
+      message.warning('暂无内容')
+      return
+    }
     const src = outputs[key]
     if (!src || typeof src !== 'string') {
       message.warning('暂无图片')
@@ -519,6 +569,18 @@
     }
     Object.assign(outputs, res.outputs)
     lastStatus.value = { ok: true, message: '执行成功', time: Date.now() }
+  }
+
+  function hasOutput(key: string) {
+    const val = outputs[key]
+    if (val === null || val === undefined) return false
+    if (typeof val === 'string') return val.trim().length > 0
+    if (Array.isArray(val)) return val.length > 0
+    if (typeof val === 'object') {
+      if ('data' in val && Array.isArray(val.data)) return val.data.length > 0
+      return Object.keys(val).length > 0
+    }
+    return true
   }
 
   function tableColumns(key: string) {
@@ -827,6 +889,11 @@
     display: inline-flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .chrono__ops :deep(.ant-btn[disabled]) {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .chrono__label {
