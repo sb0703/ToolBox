@@ -143,6 +143,7 @@
   onMounted(() => {
     ui.init()
     i18n.setLocale(i18n.locale)
+    catalog.init()
   })
 
   function handleThemeChange(val: 'light' | 'dark') {

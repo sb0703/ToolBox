@@ -109,7 +109,6 @@ const groupSelections = reactive<Record<string, string | null>>({});
 const localNames = reactive<Record<string, string>>({});
 
 onMounted(() => {
-  catalog.loadMock();
   syncNames();
 });
 

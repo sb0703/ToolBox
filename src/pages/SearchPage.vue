@@ -76,7 +76,6 @@ const route = useRoute();
 const router = useRouter();
 
 onMounted(() => {
-  catalog.loadMock();
   search.setAll(readSearchQuery(new URLSearchParams(route.query as any)));
 });
 
