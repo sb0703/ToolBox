@@ -11,8 +11,11 @@ export const useCatalogStore = defineStore("catalog", {
     byId: (s) => (id: string) => s.tools.find((t) => t.id === id),
   },
   actions: {
-    loadMock() {
+    init() {
       if (this.tools.length) return;
+      this.loadMock();
+    },
+    loadMock() {
       this.categories = [
         { id: "dev", name: "开发者工具", slug: "dev-tools" },
         { id: "design", name: "设计与图片", slug: "design-tools" },

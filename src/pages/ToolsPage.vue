@@ -100,7 +100,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed } from "vue";
 import { useCatalogStore } from "@/stores/catalog";
 import { useSearchStore } from "@/stores/search";
 import { writeSearchQuery } from "@/utils/query";
@@ -154,9 +154,6 @@ function goSearch() {
   });
 }
 
-onMounted(() => {
-  catalog.loadMock();
-});
 </script>
 <style lang="less" scoped>
 .tools {
@@ -254,4 +251,3 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.06);
 }
 </style>
-

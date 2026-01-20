@@ -26,7 +26,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useCatalogStore } from "@/stores/catalog";
 import ToolRunner from "@/components/ToolRunner.vue";
@@ -65,7 +65,6 @@ const presetMap: Record<string, { label: string; payload: Record<string, any> }[
   ],
 };
 
-onMounted(() => catalog.loadMock());
 
 const tool = computed(() =>
   catalog.tools.find((t) => t.id === String(route.params.toolId))
@@ -285,4 +284,3 @@ async function onRun(actionKey: string, form: Record<string, any>) {
   }
 }
 </style>
-

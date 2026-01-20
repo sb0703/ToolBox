@@ -41,7 +41,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useCatalogStore } from "@/stores/catalog";
 import ToolCard from "@/components/ToolCard.vue";
@@ -49,7 +49,6 @@ import ToolCard from "@/components/ToolCard.vue";
 const route = useRoute();
 const catalog = useCatalogStore();
 
-onMounted(() => catalog.loadMock());
 
 const category = computed(() =>
   catalog.categories.find((c) => c.id === String(route.params.categoryId))

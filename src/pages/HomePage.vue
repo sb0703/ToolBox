@@ -59,7 +59,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed } from "vue";
 import GlobalSearch from "@/components/GlobalSearch.vue";
 import ToolCard from "@/components/ToolCard.vue";
 import { useCatalogStore } from "@/stores/catalog";
@@ -68,10 +68,6 @@ import type { Tool } from "@/types/domain";
 
 const catalog = useCatalogStore();
 const user = useUserStore();
-
-onMounted(() => {
-  catalog.loadMock();
-});
 
 function mapIds(ids: string[]): Tool[] {
   return ids
