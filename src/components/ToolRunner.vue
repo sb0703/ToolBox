@@ -145,13 +145,42 @@
                 <div class="chrono__outputHead">
                   <div class="chrono__label">{{ out.label || t('outputs') }}</div>
                   <div class="chrono__ops">
-                    <a-button size="small" @click="copy(out.key)">{{ t('copy') }}</a-button>
-                    <a-button size="small" @click="copyAsMarkdown(out.key)">复制MD</a-button>
-                    <a-button size="small" @click="copyAsJson(out.key)">复制JSON</a-button>
-                    <a-button size="small" @click="download(out.key)">{{ t('download') }}</a-button>
                     <a-button
                       v-if="out.type === 'text' || out.type === 'code'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="copy(out.key)"
+                    >
+                      {{ t('copy') }}
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="copyAsMarkdown(out.key)"
+                    >
+                      复制MD
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="copyAsJson(out.key)"
+                    >
+                      复制JSON
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
+                      @click="download(out.key)"
+                    >
+                      {{ t('download') }}
+                    </a-button>
+                    <a-button
+                      v-if="out.type === 'text' || out.type === 'code'"
+                      size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadAsJson(out.key)"
                     >
                       下载JSON
@@ -159,6 +188,7 @@
                     <a-button
                       v-if="out.type === 'text' || out.type === 'code'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadAsMarkdown(out.key)"
                     >
                       下载MD
@@ -166,6 +196,7 @@
                     <a-button
                       v-if="out.type === 'table'"
                       size="small"
+                      :disabled="!hasTableData(out.key)"
                       @click="downloadTableCsv(out.key)"
                     >
                       导出CSV
@@ -173,6 +204,7 @@
                     <a-button
                       v-if="out.type === 'image'"
                       size="small"
+                      :disabled="!hasOutput(out.key)"
                       @click="downloadImage(out.key)"
                     >
                       下载图片
@@ -535,6 +567,19 @@
     if (Array.isArray(val)) return val
     if (val && val.data) return val.data
     return []
+  }
+
+  function hasOutput(key: string) {
+    const val = outputs[key]
+    if (val === null || val === undefined) return false
+    if (typeof val === 'string') return val.trim().length > 0
+    if (Array.isArray(val)) return val.length > 0
+    if (typeof val === 'object') return Object.keys(val).length > 0
+    return true
+  }
+
+  function hasTableData(key: string) {
+    return tableData(key).length > 0
   }
 
   function togglePin() {
